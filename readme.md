@@ -19,8 +19,8 @@ Follow these steps to set up the project:
 
 1. Run Docker Compose: `docker-compose -d`
 2. Build the project: `cargo build`
-3. Run the project: `cargo run`
-4. Set the OpenAI API key: `export OPENAI_API_KEY=sk-<your-api-key>`
+3. Set the OpenAI API key: `export OPENAI_API_KEY=sk-<your-api-key>`
+4. Run the project: `cargo run`
 
 ## Testing
 
