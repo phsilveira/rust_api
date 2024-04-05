@@ -119,8 +119,6 @@ unsafe fn search_embedding(db: &Connection, text: &str, limit: usize) -> Result<
     
     let rows = rows?;
 
-    println!("Embeddings to search: {:?}", rows);
-
     let placeholders = rows.iter().map(|_| "?").collect::<Vec<_>>().join(",");
     let sql = format!("SELECT text FROM post WHERE id IN ({})", placeholders);
 
