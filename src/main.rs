@@ -106,27 +106,39 @@ unsafe fn insert_embedding(db: &Connection, texts: Vec<String>) -> Result<(), Bo
     Ok(())
 }
 
-unsafe fn search_embedding(db: &Connection, text: &str) -> Result<String, Box<dyn Error>> {
-    // let embeddings_to_search = vec![0.1, 0.2, 0.3];
+unsafe fn search_embedding(db: &Connection, text: &str, limit: usize) -> Result<String, Box<dyn Error>> {
     let embeddings_to_search = fetch_embeddings(&[text])?.into_iter().next().ok_or("No embeddings found")?;
 
     let mut stmt = db.prepare(
-        "SELECT rowid FROM vss_post WHERE vss_search(embeddings, vss_search_params(?, 1)) LIMIT 1",
+        &format!("SELECT rowid FROM vss_post WHERE vss_search(embeddings, vss_search_params(?, {})) LIMIT {}", limit, limit),
     )?;
 
-    let row: i64 = stmt.query_row(params![json!(embeddings_to_search).to_string()], |r| {
+    let rows: Result<Vec<i64>, _> = stmt.query_map(params![json!(embeddings_to_search).to_string()], |r| {
         Ok(r.get(0)?)
-    })?;
+    })?.collect();
     
-    let mut stmt = db.prepare(
-        "SELECT text FROM post WHERE id = ?",
-    )?;
-    
-    let result: String = stmt.query_row(params![row], |r| {
-        Ok(r.get(0)?)
-    })?;
+    let rows = rows?;
 
-    Ok(result)
+    println!("Embeddings to search: {:?}", rows);
+
+    let placeholders = rows.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!("SELECT text FROM post WHERE id IN ({})", placeholders);
+
+    let mut stmt = db.prepare(&sql)?;
+
+    let mut results = Vec::new();
+
+    for row in &rows {
+        let mut stmt = db.prepare("SELECT text FROM post WHERE id = ?")?;
+        let result: String = stmt.query_row(params![row], |r| {
+            Ok(r.get(0)?)
+        })?;
+        results.push(result);
+    }
+
+    let results = results.join("\n\n");
+
+    Ok(results)
 }
 
 fn get_answer(question: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -154,7 +166,7 @@ fn get_answer(question: &str) -> Result<String, Box<dyn std::error::Error>> {
 
         let db = Connection::open(db_path)?;
 
-        let context = search_embedding(&db, &question.to_string())?;
+        let context = search_embedding(&db, &question.to_string(), 3)?;
 
         let template = format!("
         System: You are an AI assistant chatbot. You will provide for the user answers based \
